@@ -49,6 +49,12 @@ class Targetmssql(SQLTarget):
             th.StringType,
             description="Default target schema to write to",
         ),
+        th.Property(
+        "hide_parameters",
+        th.BooleanType,
+        default=True,
+        description="Hide parameters of SQL queries on errors",
+        ),
     ).to_dict()
 
     default_sink_class = mssqlSink

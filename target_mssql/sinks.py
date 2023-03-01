@@ -55,6 +55,17 @@ class mssqlSink(SQLSink):
         # Schema name not detected.
         return None
 
+    def create_sqlalchemy_engine(self) -> sqlalchemy.engine.Engine:
+        """Return a new SQLAlchemy engine using the provided config.
+        Developers can generally override just one of the following:
+        `sqlalchemy_engine`, sqlalchemy_url`.
+        Returns:
+            A newly created SQLAlchemy engine object.
+        """
+        hide_parameters = not self.config.get("log_params", True)
+        return sqlalchemy.create_engine(self.sqlalchemy_url, echo=False, hide_parameters=hide_parameters)
+
+
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Process incoming record and return a modified result.
         Args:
