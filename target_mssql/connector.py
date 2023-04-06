@@ -6,7 +6,9 @@ import sqlalchemy
 from singer_sdk.helpers._typing import get_datelike_property_type
 from singer_sdk.sinks import SQLConnector
 from sqlalchemy.dialects import mssql
+import logging
 
+LOGGER = logging.getLogger(__name__)
 
 class mssqlConnector(SQLConnector):
     """The connector for mssql.
@@ -71,6 +73,13 @@ class mssqlConnector(SQLConnector):
             port=config["port"],
             database=config["database"],
         )
+
+        host = config["host"]
+        database = config["database"]
+        connection_uri = f"mssql+pymssql://{host}/{database}"
+        self.connection_uri = connection_uri
+
+        LOGGER.info({"plugin": "target-mssql", "connection_uri": connection_uri})})
         return str(connection_url)
 
     def create_empty_table(
@@ -128,6 +137,9 @@ class mssqlConnector(SQLConnector):
                 )
 
         _ = sqlalchemy.Table(table_name, meta, *columns, schema=schema_name)
+        message = {"plugin": "target-mssql", "type": "create-dataset", "table_name": table_name, "schema_name": schema_name, "uri": f"{self.connection_uri}/{schema_name}/{table_name}", "schema": schema}
+        LOGGER.info(message)
+
         meta.create_all(self._engine)
 
     def merge_sql_types(  # noqa

@@ -10,9 +10,10 @@ import sqlalchemy
 from singer_sdk.helpers._conformers import replace_leading_digit
 from singer_sdk.sinks import SQLSink
 from sqlalchemy import Column
-
+import logging
 from target_mssql.connector import mssqlConnector
 
+LOGGER = logging.getLogger(__name__)
 
 class mssqlSink(SQLSink):
     """mssql target sink class."""
@@ -191,6 +192,9 @@ class mssqlSink(SQLSink):
                 schema=schema,
                 records=conformed_records,
             )
+
+        message = {"plugin": "target-mssql", "type": "write-data", "table_name": table_name, "schema_name": schema_name, "uri": f"{self.connector.connection_uri}/{schema_name}/{table_name}", "schema": schema}
+        LOGGER.info(message)
 
     def merge_upsert_from_table(
         self,
