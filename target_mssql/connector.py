@@ -66,7 +66,7 @@ class mssqlConnector(SQLConnector):
         connection_uri = f"mssql+pymssql://{host}/{database}"
 
         self.connection_uri = config.get("sqlalchemy_url") or connection_uri
-        LOGGER.info({"plugin": "target-mssql", "connection_uri": connection_uri})
+        LOGGER.info({"plugin": "target-mssql", "connection_uri": self.connection_uri})
         if config.get("sqlalchemy_url"):
             return config["sqlalchemy_url"]
 
