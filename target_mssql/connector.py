@@ -79,7 +79,7 @@ class mssqlConnector(SQLConnector):
         connection_uri = f"mssql+pymssql://{host}/{database}"
         self.connection_uri = connection_uri
 
-        LOGGER.info({"plugin": "target-mssql", "connection_uri": connection_uri})})
+        LOGGER.info({"plugin": "target-mssql", "connection_uri": connection_uri})
         return str(connection_url)
 
     def create_empty_table(
