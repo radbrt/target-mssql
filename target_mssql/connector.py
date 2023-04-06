@@ -61,7 +61,12 @@ class mssqlConnector(SQLConnector):
         Args:
             config: The configuration for the connector.
         """
+        host = config["host"]
+        database = config["database"]
+        connection_uri = f"mssql+pymssql://{host}/{database}"
 
+        self.connection_uri = config.get("sqlalchemy_url") or connection_uri
+        LOGGER.info({"plugin": "target-mssql", "connection_uri": connection_uri})
         if config.get("sqlalchemy_url"):
             return config["sqlalchemy_url"]
 
@@ -74,12 +79,8 @@ class mssqlConnector(SQLConnector):
             database=config["database"],
         )
 
-        host = config["host"]
-        database = config["database"]
-        connection_uri = f"mssql+pymssql://{host}/{database}"
-        self.connection_uri = connection_uri
 
-        LOGGER.info({"plugin": "target-mssql", "connection_uri": connection_uri})
+
         return str(connection_url)
 
     def create_empty_table(

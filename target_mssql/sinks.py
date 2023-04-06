@@ -193,6 +193,9 @@ class mssqlSink(SQLSink):
                 records=conformed_records,
             )
 
+        db_name, schema_name, table_name = self.parse_full_table_name(
+                self.full_table_name
+            )
         message = {"plugin": "target-mssql", "type": "write-data", "table_name": table_name, "schema_name": schema_name, "uri": f"{self.connector.connection_uri}/{schema_name}/{table_name}", "schema": schema}
         LOGGER.info(message)
 
