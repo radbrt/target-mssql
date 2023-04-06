@@ -197,7 +197,7 @@ class mssqlSink(SQLSink):
                 self.full_table_name
             )
         message = {"LOG_TYPE": "MELTANO-META-LOGGER", "plugin": "target-mssql", "type": "write-data", "table_name": table_name, "schema_name": schema_name, "uri": f"{self.connector.connection_uri}/{schema_name}/{table_name}", "schema": schema}
-        LOGGER.info(message)
+        LOGGER.info(json.dumps(message))
 
     def merge_upsert_from_table(
         self,

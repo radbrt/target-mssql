@@ -7,6 +7,7 @@ from singer_sdk.helpers._typing import get_datelike_property_type
 from singer_sdk.sinks import SQLConnector
 from sqlalchemy.dialects import mssql
 import logging
+import json
 
 LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class mssqlConnector(SQLConnector):
         connection_uri = f"mssql+pymssql://{host}/{database}"
 
         self.connection_uri = config.get("sqlalchemy_url") or connection_uri
-        LOGGER.info({"LOG_TYPE": "MELTANO-META-LOGGER", "plugin": "target-mssql", "connection_uri": self.connection_uri})
+        LOGGER.info(json.dumps({"LOG_TYPE": "MELTANO-META-LOGGER", "plugin": "target-mssql", "connection_uri": self.connection_uri}))
         if config.get("sqlalchemy_url"):
             return config["sqlalchemy_url"]
 
