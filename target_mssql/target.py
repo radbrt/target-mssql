@@ -49,6 +49,12 @@ class Targetmssql(SQLTarget):
             th.StringType,
             description="Default target schema to write to",
         ),
+        th.Property(
+            "column_renaming",
+            th.StringType,
+            default="snake_lowercase",
+            description="Column renaming strategy",
+        ),
     ).to_dict()
 
     default_sink_class = mssqlSink

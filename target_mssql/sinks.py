@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, Iterable, List, Optional
-
+import typing as t
+from typing import Any, Dict, Iterable, List, Optional, Union
+from sqlalchemy import bindparam
 import sqlalchemy
 from singer_sdk.helpers._conformers import replace_leading_digit
 from singer_sdk.sinks import SQLSink
 from sqlalchemy import Column
-
+from textwrap import dedent
 from target_mssql.connector import mssqlConnector
+
+
+if t.TYPE_CHECKING:
+    from sqlalchemy.sql import Executable
+    from singer_sdk.plugin_base import PluginBase
 
 
 class mssqlSink(SQLSink):
@@ -55,6 +61,41 @@ class mssqlSink(SQLSink):
         # Schema name not detected.
         return None
 
+
+    def generate_insert_statement(
+        self,
+        full_table_name: str,
+        schema: dict,
+    ) -> Union[str, Executable]:
+        """Generate an insert statement for the given records.
+        Args:
+            full_table_name: the target table name.
+            schema: the JSON schema for the new table.
+        Returns:
+            An insert statement.
+        """
+        property_names = list(self.conform_schema(schema)["properties"].keys())
+
+        # Add wrapping bracket to accomodate e.g. spaces
+        column_names = [f'[{_}]' for _ in property_names]
+        insert_cols = ", ".join(column_names)
+        from sqlalchemy import bindparam
+        # convert params to :name and add in underscores if needed
+        _clean_params = list(map(str,map(bindparam, property_names)))
+
+        value_params = ",".join(_clean_params)
+        clean_params = [re.sub('[^a-zA-Z0-9_:]', '_', s) for s in _clean_params]
+        dict_keys = [k.replace(':', '') for k in clean_params]
+        statement = dedent(
+            f"""\
+            INSERT INTO {full_table_name}
+            ({insert_cols})
+            VALUES ({','.join(clean_params)})
+            """
+        )
+        return statement.rstrip(), dict_keys
+
+
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Process incoming record and return a modified result.
         Args:
@@ -90,23 +131,24 @@ class mssqlSink(SQLSink):
         Returns:
             True if table exists, False if not, None if unsure or undetectable.
         """
-        insert_sql = self.generate_insert_statement(
+        insert_sql, params = self.generate_insert_statement(
             full_table_name,
             schema,
         )
         if isinstance(insert_sql, str):
             insert_sql = sqlalchemy.text(insert_sql)
 
-        self.logger.info("Inserting with SQL: %s", insert_sql)
-
         columns = self.column_representation(schema)
 
         # temporary fix to ensure missing properties are added
         insert_records = []
+
+
         for record in records:
             insert_record = {}
-            for column in columns:
-                insert_record[column.name] = record.get(column.name)
+            for param, column in zip(params, columns):
+                insert_record[param] = record.get(column.name)
+
             insert_records.append(insert_record)
 
         self.connection.execute(insert_sql, insert_records)
@@ -150,7 +192,7 @@ class mssqlSink(SQLSink):
         schema = self.conform_schema(self.schema)
 
         if self.key_properties:
-            self.logger.info(f"Preparing table {self.full_table_name}")
+            self.logger.debug(f"Preparing table {self.full_table_name}")
             self.connector.prepare_table(
                 full_table_name=self.full_table_name,
                 schema=schema,
@@ -158,28 +200,27 @@ class mssqlSink(SQLSink):
                 as_temp_table=False,
             )
             # Create a temp table (Creates from the table above)
-            self.logger.info(f"Creating temp table {self.full_table_name}")
-            self.connector.create_temp_table_from_table(
+            self.logger.debug(f"Creating temp table {self.full_table_name}")
+            temp_table_name = self.connector.create_temp_table_from_table(
                 from_table_name=self.full_table_name
             )
 
-            db_name, schema_name, table_name = self.parse_full_table_name(
-                self.full_table_name
-            )
-            tmp_table_name = (
-                f"{schema_name}.#{table_name}" if schema_name else f"#{table_name}"
-            )
+            # db_name, schema_name, table_name = self.parse_full_table_name(
+            #     self.full_table_name
+            # )
+            # tmp_table_name = (
+            #     f"{schema_name}.#{table_name}" if schema_name else f"#{table_name}"
+            # )
             # Insert into temp table
             self.bulk_insert_records(
-                full_table_name=tmp_table_name,
+                full_table_name=temp_table_name,
                 schema=schema,
                 records=conformed_records,
                 is_temp_table=True,
             )
             # Merge data from Temp table to main table
-            self.logger.info(f"Merging data from temp table to {self.full_table_name}")
             self.merge_upsert_from_table(
-                from_table_name=tmp_table_name,
+                from_table_name=temp_table_name,
                 to_table_name=self.full_table_name,
                 schema=schema,
                 join_keys=join_keys,
@@ -211,29 +252,38 @@ class mssqlSink(SQLSink):
         """
         # TODO think about sql injeciton,
         # issue here https://github.com/MeltanoLabs/target-postgres/issues/22
+        
+        bracket_props = [f'[{prop}]' for prop in schema["properties"].keys()]
 
         join_condition = " and ".join(
-            [f"temp.{key} = target.{key}" for key in join_keys]
+            [f"temp.[{key}] = target.[{key}]" for key in join_keys]
         )
 
         update_stmt = ", ".join(
             [
                 f"target.{key} = temp.{key}"
-                for key in schema["properties"].keys()
+                for key in bracket_props
                 if key not in join_keys
             ]
         )  # noqa
 
+        insert_cols = ", ".join([f"{key}" for key in bracket_props])
+        value_cols = ", ".join([f"temp.{key}" for key in bracket_props])
+
+        bracketed_table_ref_pieces = to_table_name.strip('[]').split(".")
+        bracketed_to_table_name = [f"[{piece}]" for piece in bracketed_table_ref_pieces]
+        quoted_table_ref = ".".join(bracketed_to_table_name)
+
         merge_sql = f"""
-            MERGE INTO {to_table_name} AS target
+            MERGE INTO {quoted_table_ref} AS target
             USING {from_table_name} AS temp
             ON {join_condition}
             WHEN MATCHED THEN
                 UPDATE SET
                     { update_stmt }
             WHEN NOT MATCHED THEN
-                INSERT ({", ".join(schema["properties"].keys())})
-                VALUES ({", ".join([f"temp.{key}" for key in schema["properties"].keys()])});
+                INSERT ({insert_cols})
+                VALUES ({value_cols});
         """
 
         with self.connection.begin():
@@ -272,7 +322,7 @@ class mssqlSink(SQLSink):
     def snakecase(self, name):
         name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
         name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", name)
-        return name.lower()
+        return name
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
@@ -285,9 +335,19 @@ class mssqlSink(SQLSink):
         Returns:
             The name transformed to snake case.
         """
-        # strip non-alphanumeric characters, keeping - . _ and spaces
-        name = re.sub(r"[^a-zA-Z0-9_\-\.\s]", "", name)
-        # convert to snakecase
-        name = self.snakecase(name)
-        # replace leading digit
-        return replace_leading_digit(name)
+
+        if self.config.get("column_renaming") == "preserve_original":
+            return name
+        if self.config.get("column_renaming") == "snake_uppercase":
+            name = re.sub(r"[^a-zA-Z0-9_\-\.\s]", "", name)
+            return name.upper()
+        else:
+            name = re.sub(r"[^a-zA-Z0-9_\-\.\s]", "", name)
+            return name.lower()
+
+        # # strip non-alphanumeric characters, keeping - . _ and spaces
+        # name = re.sub(r"[^a-zA-Z0-9_\-\.\s]", "", name)
+        # # convert to snakecase
+        # name = self.snakecase(name)
+        # # replace leading digit
+        # return replace_leading_digit(name)

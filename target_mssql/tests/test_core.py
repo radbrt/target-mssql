@@ -25,6 +25,7 @@ def mssql_config():
         "host": "localhost",
         "port": "1433",
         "database": "master",
+        "column_renaming": "preserve_original",
     }
 
 

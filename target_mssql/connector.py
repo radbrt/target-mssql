@@ -248,7 +248,7 @@ class mssqlConnector(SQLConnector):
         try:
             self.connection.execute(
                 f"""ALTER TABLE { str(full_table_name) }
-                ALTER COLUMN { str(column_name) } { str(compatible_sql_type) }"""
+                ALTER COLUMN [{ str(column_name) }] { str(compatible_sql_type) }"""
             )
         except Exception as e:
             raise RuntimeError(
@@ -290,6 +290,8 @@ class mssqlConnector(SQLConnector):
                 sql_type,
             )
         )
+
+        # create_column_clause = f"[{column_name}] {str(sql_type)}"
 
         try:
             self.connection.execute(
@@ -370,15 +372,18 @@ class mssqlConnector(SQLConnector):
 
         return cast(sqlalchemy.types.TypeEngine, sqlalchemy.types.VARCHAR())
 
+
     def create_temp_table_from_table(self, from_table_name):
         """Temp table from another table."""
 
         db_name, schema_name, table_name = self.parse_full_table_name(from_table_name)
+        stripped_table_name = table_name.strip('[]')
+        temp_table_name = f"#{stripped_table_name}"
         full_table_name = (
-            f"{schema_name}.{table_name}" if schema_name else f"{table_name}"
+            f"[{schema_name}].[{table_name}]" if schema_name else f"[{table_name}]"
         )
         tmp_full_table_name = (
-            f"{schema_name}.#{table_name}" if schema_name else f"#{table_name}"
+            f"[{schema_name}].[{temp_table_name}]" if schema_name else f"[{temp_table_name}]"
         )
 
         droptable = f"DROP TABLE IF EXISTS {tmp_full_table_name}"
@@ -391,3 +396,46 @@ class mssqlConnector(SQLConnector):
         """
 
         self.connection.execute(ddl)
+
+        return tmp_full_table_name
+
+    @staticmethod
+    def get_fully_qualified_name(
+        table_name: str | None = None,
+        schema_name: str | None = None,
+        db_name: str | None = None,
+        delimiter: str = ".",
+    ) -> str:
+        """Concatenates a fully qualified name from the parts.
+        Args:
+            table_name: The name of the table.
+            schema_name: The name of the schema. Defaults to None.
+            db_name: The name of the database. Defaults to None.
+            delimiter: Generally: '.' for SQL names and '-' for Singer names.
+        Raises:
+            ValueError: If all 3 name parts not supplied.
+        Returns:
+            The fully qualified name as a string.
+        """
+        parts = []
+
+        if db_name:
+            parts.append(f"{db_name}")
+        if schema_name:
+            parts.append(f"{schema_name}")
+        if table_name:
+            parts.append(f"{table_name}")
+
+        if not parts:
+            raise ValueError(
+                "Could not generate fully qualified name: "
+                + ":".join(
+                    [
+                        db_name or "(unknown-db)",
+                        schema_name or "(unknown-schema)",
+                        table_name or "(unknown-table-name)",
+                    ],
+                ),
+            )
+
+        return delimiter.join(parts)
