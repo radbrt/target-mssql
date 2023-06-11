@@ -70,10 +70,12 @@ Regarding connection info, either the `sqlalchemy_url` or `username`, `password`
 | port                 | False    | 1433    | SQL Server port |
 | database             | False    | None    | SQL Server database |
 | default_target_schema| False    | None    | Default target schema to write to |
+| preserve_naming      | False    | False   | Keep stream and column names as-is |
 | stream_maps          | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
 | stream_map_config    | False    | None    | User-defined config values to be used within map expressions. |
 | flattening_enabled   | False    | None    | 'True' to enable schema flattening and automatically expand nested properties. |
 | flattening_max_depth | False    | None    | The max depth to flatten schemas. |
+
 
 A full list of supported settings and capabilities is available by running: `target-mssql --about`
 

@@ -50,10 +50,10 @@ class Targetmssql(SQLTarget):
             description="Default target schema to write to",
         ),
         th.Property(
-            "column_renaming",
-            th.StringType,
-            default="snake_lowercase",
-            description="Column renaming strategy",
+            "preserve_naming",
+            th.BooleanType,
+            default=False,
+            description="Keep stream and column names as-is",
         ),
     ).to_dict()
 

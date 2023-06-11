@@ -336,11 +336,8 @@ class mssqlSink(SQLSink):
             The name transformed to snake case.
         """
 
-        if self.config.get("column_renaming") == "preserve_original":
+        if self.config.get("preserve_naming"):
             return name
-        if self.config.get("column_renaming") == "snake_uppercase":
-            name = re.sub(r"[^a-zA-Z0-9_\-\.\s]", "", name)
-            return name.upper()
         else:
             name = re.sub(r"[^a-zA-Z0-9_\-\.\s]", "", name)
             return name.lower()
